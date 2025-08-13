@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorldPosta Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1; /* Light mode track */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #679a41;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #588836;
+    }
+
+    .dark ::-webkit-scrollbar-track {
+      background: #2d3748; /* Dark mode track */
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #4a5568; /* Dark mode thumb */
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: #2c3748; /* Dark mode thumb hover */
+    }
+
+    /* Initial body background for light mode, dark mode will override via class */
+    body {
+      background-color: #fcfcfc;
+    }
+    html.dark body {
+      background-color: #1a202c; /* Dark mode base background */
+    }
+    
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
+    "uuid": "https://esm.sh/uuid@^11.1.0",
+    "@/components/ui": "/components/ui/index.ts",
+    "@/pages": "/pages/index.ts",
+    "@/context": "/context.tsx",
+    "@/data": "/data.ts",
+    "@/types": "/types.ts",
+    "@google/genai": "https://esm.sh/@google/genai@^1.11.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="antialiased text-[#293c51] dark:text-gray-200">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

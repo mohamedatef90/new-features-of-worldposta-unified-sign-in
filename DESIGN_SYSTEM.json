@@ -1,0 +1,166 @@
+
+{
+  "philosophy": {
+    "title": "Clarity, Consistency, and Efficiency",
+    "principles": [
+      {
+        "name": "Clarity",
+        "description": "The UI is designed to be intuitive and reduce cognitive load. Information is presented in a structured hierarchy, and interactive elements are clearly distinguished."
+      },
+      {
+        "name": "Consistency",
+        "description": "A user should be able to predict how an element will behave, regardless of which service or page they are on. Components like buttons, cards, and forms share the same visual language."
+      },
+      {
+        "name": "Efficiency",
+        "description": "Workflows are designed to be streamlined. Users can accomplish their primary tasks with minimal friction."
+      },
+      {
+        "name": "Scalability",
+        "description": "The system is built with modular components that can be reused and extended for new features and services without breaking the core design."
+      },
+      {
+        "name": "Accessibility",
+        "description": "We strive to meet accessibility standards by using semantic HTML, ARIA attributes, proper color contrast, and keyboard-navigable elements."
+      }
+    ]
+  },
+  "colors": {
+    "primary": {
+      "light": "#679a41",
+      "dark": "emerald-500",
+      "description": "Primary buttons, active navigation, links, focus rings, key icons."
+    },
+    "secondary": {
+      "light": "#293c51",
+      "dark": "sky-600",
+      "description": "Secondary buttons, primary text, headings."
+    },
+    "background": {
+      "light": "#fcfcfc",
+      "light_alt": "#f8f8f8",
+      "dark": "#1a202c",
+      "dark_alt": "#slate-800",
+      "description": "Page backgrounds and containers."
+    },
+    "surface": {
+      "light": "#ffffff",
+      "dark": "slate-800",
+      "description": "Cards, Modals, Popovers."
+    },
+    "text": {
+      "primary_light": "#293c51",
+      "secondary_light": "gray-500",
+      "primary_dark": "gray-200",
+      "secondary_dark": "gray-400",
+      "description": "Body copy, labels, placeholders."
+    },
+    "border": {
+      "light": "gray-300",
+      "dark": "slate-700",
+      "description": "Separators, input fields, card outlines."
+    },
+    "status": {
+      "danger": {
+        "action_light": "red-600",
+        "background_light": "red-100",
+        "action_dark": "red-500",
+        "background_dark": "red-900",
+        "description": "Delete actions, error messages, critical alerts."
+      },
+      "success": {
+        "background_light": "green-100",
+        "background_dark": "green-900",
+        "description": "Success indicators, 'Active' status chips."
+      },
+      "warning": {
+        "background_light": "yellow-100",
+        "background_dark": "yellow-900",
+        "description": "'Suspended' or 'Pending' status chips, warnings."
+      }
+    }
+  },
+  "typography": {
+    "fontFamily": "sans-serif (Inter, system-ui, etc.)",
+    "hierarchy": [
+      {
+        "level": "h1",
+        "name": "Page Titles",
+        "tailwindClass": "text-3xl font-bold"
+      },
+      {
+        "level": "h2",
+        "name": "Card/Section Titles",
+        "tailwindClass": "text-xl font-semibold"
+      },
+      {
+        "level": "h3",
+        "name": "Sub-headings",
+        "tailwindClass": "text-lg font-medium"
+      },
+      {
+        "level": "body",
+        "name": "Body Text",
+        "tailwindClass": "text-sm"
+      },
+      {
+        "level": "label",
+        "name": "Labels & Metadata",
+        "tailwindClass": "text-xs"
+      }
+    ]
+  },
+  "layout": {
+    "overall": "Persistent sidebar navigation pattern. Two-column layout: a fixed-width sidebar and a main content area.",
+    "specialized": "Dedicated layouts for services like CloudEdge and Posta Email services to create a focused, 'app-within-an-app' experience.",
+    "gridSystem": "Utilizes CSS Grid and Flexbox. Responsive grids (e.g., grid-cols-1 md:grid-cols-2 lg:grid-cols-4) are used for dashboard cards.",
+    "spacing": {
+      "scale": "Multiples of 4px (Tailwind's default scale)",
+      "examples": ["p-6 in cards", "space-y-4", "gap-6"]
+    }
+  },
+  "components": {
+    "card": {
+      "fileName": "Card.tsx",
+      "description": "Primary content container. Features a white/dark slate background, rounded-xl corners, p-6 padding, and a subtle shadow."
+    },
+    "button": {
+      "fileName": "Button.tsx",
+      "description": "Main interactive element with clear states for hover, focus, disabled, and isLoading.",
+      "variants": [
+        {
+          "name": "Primary",
+          "description": "Solid brand color for the main call-to-action."
+        },
+        {
+          "name": "Outline",
+          "description": "Transparent background with a brand-colored border."
+        },
+        {
+          "name": "Ghost",
+          "description": "Fully transparent for tertiary actions."
+        },
+        {
+          "name": "Danger",
+          "description": "Red for destructive actions."
+        }
+      ]
+    },
+    "formField": {
+      "fileName": "FormField.tsx",
+      "description": "Provides a consistent experience for all data entry with a standard border, a highlighted focus ring, and a distinct error state."
+    },
+    "sidebar": {
+      "fileName": "Sidebar.tsx",
+      "description": "Collapsible on desktop, slides in as an overlay on mobile. Active links are highlighted."
+    },
+    "navbar": {
+      "fileName": "Navbar.tsx",
+      "description": "Contains global elements like the user profile, notifications, and the Floating App Launcher."
+    },
+    "modal": {
+      "fileName": "Modal.tsx",
+      "description": "Used for focused tasks. Appears with a backdrop to dim the background content."
+    }
+  }
+}
