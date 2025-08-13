@@ -8,6 +8,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, Outlet, useSearchParams, Link } from 'react-router-dom';
 import { AuthProvider, ThemeProvider, useAuth, AppLayoutContext } from '@/context';
@@ -185,7 +187,7 @@ const getAppLauncherItems = (role: User['role'] | undefined): ApplicationCardDat
             id: 'email-migration',
             name: 'Email Migration',
             description: 'Migrate your mailboxes from other providers to WorldPosta seamlessly.',
-            iconName: 'fas fa-people-carry',
+            iconName: 'fas fa-exchange-alt',
             launchUrl: '/app/email-migration',
         },
     ];

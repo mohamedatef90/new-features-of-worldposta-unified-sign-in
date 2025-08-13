@@ -722,7 +722,7 @@ export const DashboardPage: React.FC = () => { // This is the Customer Dashboard
         id: 'email-migration',
         name: 'Email Migration',
         description: 'Migrate your mailboxes from other providers to WorldPosta seamlessly.',
-        iconName: 'fas fa-people-carry',
+        iconName: 'fas fa-exchange-alt',
         launchUrl: '/app/email-migration',
         section: 'product',
     },
