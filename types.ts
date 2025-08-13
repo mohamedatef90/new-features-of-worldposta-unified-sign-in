@@ -407,6 +407,7 @@ export interface ConnectionDetails {
   server?: string;
   port?: number;
   useSsl: boolean;
+  serverType?: 'exchange' | 'imap';
 }
 
 export interface FailedItem {

@@ -28,74 +28,9 @@ const mockFolderStructure: TreeNode[] = [
     { id: 'deleted', name: 'Deleted Items' },
 ];
 
-const ConnectionForm: React.FC<{
-  title: string;
-  provider: EmailProvider;
-  connectionDetails: Partial<ConnectionDetails>;
-  onProviderChange: (provider: EmailProvider) => void;
-  onDetailsChange: (field: keyof ConnectionDetails, value: any) => void;
-}> = ({ title, provider, connectionDetails, onProviderChange, onDetailsChange }) => {
-    
-    const isOAuthProvider = provider === 'google' || provider === 'microsoft';
-
-    return (
-        <Card title={title}>
-            <FormField as="select" id={`${title}-provider`} name="provider" label="Email Provider" value={provider} onChange={e => onProviderChange(e.target.value as EmailProvider)}>
-                <option value="google">Google Workspace</option>
-                <option value="microsoft">Microsoft 365</option>
-                <option value="zoho">Zoho Mail</option>
-                <option value="other_imap">Other (IMAP/SMTP)</option>
-            </FormField>
-            
-            {isOAuthProvider ? (
-                <>
-                    <FormField id={`${title}-username`} name="username" label="Username" value={connectionDetails.username || ''} onChange={e => onDetailsChange('username', e.target.value)} placeholder={`user@${provider}.com`} required/>
-                    <Button variant="outline" leftIconName={provider === 'google' ? 'fab fa-google' : 'fab fa-windows'} className="w-full mt-2">
-                        Authenticate with {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                    </Button>
-                </>
-            ) : (
-                <>
-                    <FormField id={`${title}-username`} name="username" label="IMAP Username" value={connectionDetails.username || ''} onChange={e => onDetailsChange('username', e.target.value)} placeholder="user@source.com" required/>
-                    <FormField id={`${title}-password`} name="password" label="IMAP Password" type="password" value={connectionDetails.password || ''} onChange={e => onDetailsChange('password', e.target.value)} showPasswordToggle required/>
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-2">
-                            <FormField id={`${title}-server`} name="server" label="IMAP Server" value={connectionDetails.server || ''} onChange={e => onDetailsChange('server', e.target.value)} placeholder="imap.example.com" required/>
-                        </div>
-                        <FormField id={`${title}-port`} name="port" label="Port" type="number" value={connectionDetails.port || 993} onChange={e => onDetailsChange('port', e.target.value)} required/>
-                    </div>
-                    <FormField type="checkbox" id={`${title}-ssl`} name="useSsl" label="Use SSL / TLS" checked={connectionDetails.useSsl ?? true} onChange={e => onDetailsChange('useSsl', (e.target as HTMLInputElement).checked)} />
-                </>
-            )}
-        </Card>
-    );
-};
-
-const MigrationGreetingView: React.FC<{ onStart: () => void }> = ({ onStart }) => (
-    <Card>
-        <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-            <div className="flex-shrink-0">
-                <Icon name="fas fa-rocket" className="text-5xl text-[#679a41] dark:text-emerald-400" />
-            </div>
-            <div className="flex-grow">
-                <h2 className="text-2xl font-bold text-[#293c51] dark:text-gray-100">Email Migration Service</h2>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Our secure and automated process ensures a seamless transfer of your data. We charge a flat fee of <strong>${MIGRATION_COST_PER_MAILBOX.toFixed(2)} per mailbox</strong> for this service.
-                </p>
-            </div>
-            <div className="flex-shrink-0 w-full md:w-auto">
-                <Button onClick={onStart} size="lg" className="w-full">
-                    Start New Migration
-                </Button>
-            </div>
-        </div>
-    </Card>
-);
-
-
 export const EmailMigrationPage: React.FC = () => {
     const navigate = useNavigate();
-    const [view, setView] = useState<'list' | 'wizard'>('list');
+    const [view, setView] = useState<'greeting' | 'list' | 'wizard'>('greeting');
     const [projects, setProjects] = useState<EmailMigrationProject[]>(mockEmailMigrationProjects);
     const [activeProject, setActiveProject] = useState<Partial<EmailMigrationProject> | null>(null);
 
@@ -112,6 +47,10 @@ export const EmailMigrationPage: React.FC = () => {
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const migrationIntervalRef = useRef<number | null>(null);
     
+    // State for delete modal
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [projectToDelete, setProjectToDelete] = useState<EmailMigrationProject | null>(null);
+
     const resetWizard = useCallback(() => {
         setActiveProject(null);
         setCurrentStep(0);
@@ -130,13 +69,22 @@ export const EmailMigrationPage: React.FC = () => {
     };
 
     const handleStartNewMigration = () => {
-        const newProject: Partial<EmailMigrationProject> = {
+        const newProject: Partial<EmailMigrationProject & { [key: string]: any }> = {
             id: uuidv4(),
             projectName: '',
-            sourceProvider: 'google',
-            sourceConnection: { useOAuth: true, useSsl: true },
-            destinationProvider: 'microsoft',
-            destinationConnection: { useOAuth: true, useSsl: true },
+            sourceProvider: 'other_imap', 
+            sourceConnection: { 
+                useOAuth: false, 
+                useSsl: true,
+                port: 993,
+            },
+            destinationProvider: 'other_imap', 
+            destinationConnection: { 
+                useOAuth: false, 
+                useSsl: true,
+                server: 'imap.worldposta.com',
+                port: 993,
+            },
             itemsToMigrate: ['emails', 'contacts', 'calendar'],
             mailboxesToMigrate: 1,
             status: 'not_started',
@@ -144,9 +92,19 @@ export const EmailMigrationPage: React.FC = () => {
             createdAt: new Date().toISOString(),
             isIncrementalSyncEnabled: true,
             migrationWindow: 'all',
+            folderOptions: {
+                selection: 'all',
+                excludeInbox: false,
+            },
+            dateRange: {
+                type: 'all',
+                from: '',
+                to: '',
+            },
+            maxErrors: '200',
+            addHeader: false,
         };
-        setActiveProject(newProject);
-        // Add to projects list immediately
+        setActiveProject(newProject as Partial<EmailMigrationProject>);
         setProjects(prev => [newProject as EmailMigrationProject, ...prev]);
         setCurrentStep(0);
         setView('wizard');
@@ -174,9 +132,16 @@ export const EmailMigrationPage: React.FC = () => {
         setView('wizard');
     };
 
-    const handleDeleteProject = (projectId: string) => {
-        if(window.confirm("Are you sure you want to delete this migration project? This cannot be undone.")) {
-            setProjects(prev => prev.filter(p => p.id !== projectId));
+    const handleOpenDeleteModal = (project: EmailMigrationProject) => {
+        setProjectToDelete(project);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = () => {
+        if (projectToDelete) {
+            setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
+            setIsDeleteModalOpen(false);
+            setProjectToDelete(null);
         }
     };
     
@@ -240,8 +205,17 @@ export const EmailMigrationPage: React.FC = () => {
     const handleNext = async () => {
         setErrorMessage('');
         if (currentStep === 0) { // Connect Accounts
-            if (!activeProject?.projectName || !activeProject?.sourceConnection?.username || !activeProject?.destinationConnection?.username) {
-                setErrorMessage('Please enter a project name, source, and destination usernames.');
+            // @ts-ignore
+            if (!activeProject?.projectName || 
+                !activeProject.sourceConnection?.username || 
+                !activeProject.sourceConnection?.server ||
+                !activeProject.sourceConnection?.port ||
+                !activeProject.destinationConnection?.username ||
+                !activeProject.destinationConnection?.password ||
+                !activeProject.destinationConnection?.server ||
+                !activeProject.destinationConnection?.port
+            ) {
+                setErrorMessage('Please fill all required fields in the Source and Destination sections.');
                 return;
             }
             setIsLoading(true);
@@ -322,21 +296,6 @@ export const EmailMigrationPage: React.FC = () => {
             }
         }));
     };
-    
-    const handleProviderChange = (
-        connectionType: 'sourceConnection' | 'destinationConnection',
-        provider: EmailProvider
-    ) => {
-         updateAndSaveActiveProject(p => ({
-            ...p,
-            [connectionType === 'sourceConnection' ? 'sourceProvider' : 'destinationProvider']: provider,
-            [connectionType]: {
-                useOAuth: provider === 'google' || provider === 'microsoft',
-                useSsl: true, // default to true
-                username: p?.[connectionType]?.username || ''
-            }
-        }));
-    };
 
     const getStatusChip = (status: MigrationStatus) => {
         switch(status) {
@@ -348,122 +307,128 @@ export const EmailMigrationPage: React.FC = () => {
         }
     };
 
-    const renderListView = () => (
-        <Card title="Existing Migration Projects">
-            {projects.length === 0 ? (
-                 <p className="text-center text-gray-500 dark:text-gray-400 py-6">No migration projects have been started yet.</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                        <thead className="bg-gray-50 dark:bg-slate-700">
-                            <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Project Name</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Progress</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Created</th>
-                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {projects.map(p => (
-                                <tr key={p.id}>
-                                    <td className="px-4 py-3 font-medium">{p.projectName}</td>
-                                    <td className="px-4 py-3">{getStatusChip(p.status)}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center">
-                                            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mr-2">
-                                                <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${p.progress}%` }}></div>
-                                            </div>
-                                            <span className="text-xs font-semibold">{p.progress}%</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">{new Date(p.createdAt).toLocaleDateString()}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        {p.status === 'completed' && <Button size="sm" variant="outline" onClick={() => handleResumeProject(p)}>View Report</Button>}
-                                        {p.status === 'in_progress' && <Button size="sm" onClick={() => handleResumeProject(p)}>View Progress</Button>}
-                                        {(p.status !== 'completed' && p.status !== 'in_progress') && <Button size="sm" variant="outline" onClick={() => handleResumeProject(p)}>Resume</Button>}
-                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteProject(p.id)} title="Delete Project"><Icon name="fas fa-trash-alt" className="text-red-500"/></Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </Card>
-    );
-
-    const renderWizardView = () => (
-        <>
-            <div className="w-full md:w-3/4 lg:w-2/3 mx-auto">
-                <Stepper steps={steps} currentStep={currentStep} className="my-8" />
-            </div>
-
-            <div className="max-w-4xl mx-auto">
-                {errorMessage && (
-                    <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
-                        <Icon name="fas fa-exclamation-triangle" className="mr-2"/>
-                        <span className="font-medium">Error:</span> {errorMessage}
-                    </div>
-                )}
-
-                {renderStepContent()}
-            </div>
-            
-            <div className="max-w-4xl mx-auto flex justify-between items-center mt-8 pt-4 border-t dark:border-slate-700">
-                <div>
-                     {currentStep > 0 && currentStep < 4 && activeProject?.status !== 'in_progress' && (
-                        <Button variant="outline" onClick={handleBack} disabled={isLoading}>Back</Button>
-                    )}
-                </div>
-                 <div className="flex items-center gap-2">
-                    {currentStep < 3 && (
-                        <Button onClick={handleNext} isLoading={isLoading} disabled={isLoading}>
-                            {currentStep === 0 ? 'Connect & Analyze' : 'Next'}
-                        </Button>
-                    )}
-                    {currentStep === 3 && activeProject?.status !== 'in_progress' && activeProject?.status !== 'completed' && (
-                        <Button onClick={handleNext} leftIconName="fas fa-rocket">Start Migration</Button>
-                    )}
-                    {currentStep === 3 && activeProject?.status === 'in_progress' && (
-                        <Button variant="danger" onClick={() => setIsCancelModalOpen(true)}>Cancel Migration</Button>
-                    )}
-                    {currentStep === 3 && activeProject?.status === 'completed' && (
-                        <Button onClick={handleNext} leftIconName="far fa-file-alt">View Report</Button>
-                    )}
-                </div>
-            </div>
-        </>
-    );
-
     const renderStepContent = () => {
         if (!activeProject) return <Spinner />;
+        
+        const sourceUseSsl = activeProject.sourceConnection?.useSsl ?? true;
+        const destUseSsl = activeProject.destinationConnection?.useSsl ?? true;
+        // @ts-ignore
+        const folderSelection = activeProject.folderOptions?.selection || 'all';
+        // @ts-ignore
+        const dateRangeType = activeProject.dateRange?.type || 'all';
+
         switch (currentStep) {
             case 0: return (
                 <div className="space-y-6">
-                    <FormField id="projectName" name="projectName" label="Project Name" value={activeProject.projectName || ''} onChange={e => updateAndSaveActiveProject({projectName: e.target.value})} placeholder="e.g., Marketing Team Migration" required/>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <ConnectionForm 
-                            title="Source Account"
-                            provider={activeProject.sourceProvider!}
-                            connectionDetails={activeProject.sourceConnection!}
-                            onProviderChange={(provider) => handleProviderChange('sourceConnection', provider)}
-                            onDetailsChange={(field, value) => handleConnectionChange('sourceConnection', field, value)}
-                        />
-                        <ConnectionForm 
-                            title="Destination Account"
-                            provider={activeProject.destinationProvider!}
-                            connectionDetails={activeProject.destinationConnection!}
-                            onProviderChange={(provider) => handleProviderChange('destinationConnection', provider)}
-                            onDetailsChange={(field, value) => handleConnectionChange('destinationConnection', field, value)}
-                        />
-                    </div>
-                    <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg flex items-center gap-3 text-sm">
-                        <Icon name="fas fa-lock" className="text-green-500" />
-                        <p className="text-gray-600 dark:text-gray-400">
-                            Your credentials are sent over encrypted SSL/TLS channels and are never stored after the migration is complete. We recommend using provider authentication (OAuth) when available.
-                        </p>
-                    </div>
+                    <FormField 
+                        id="projectName" 
+                        name="projectName" 
+                        label="Project Name" 
+                        value={activeProject.projectName || ''} 
+                        onChange={e => updateAndSaveActiveProject({ projectName: e.target.value })} 
+                        placeholder="e.g., Marketing Team Migration" 
+                        required 
+                    />
+                    
+                    <Card title="Source">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            {/* @ts-ignore */}
+                            <FormField id="sourceUser" name="sourceUser" label="User Name" required value={activeProject.sourceConnection?.username || ''} onChange={e => handleConnectionChange('sourceConnection', 'username', e.target.value)} wrapperClassName="!mb-0" />
+                            {/* @ts-ignore */}
+                            <FormField id="sourcePass" name="sourcePass" label="Password" type="password" showPasswordToggle value={activeProject.sourceConnection?.password || ''} onChange={e => handleConnectionChange('sourceConnection', 'password', e.target.value)} wrapperClassName="!mb-0" />
+                            <Button variant="outline" className="w-full">Validate Credentials</Button>
+                        </div>
+                         {/* @ts-ignore */}
+                        <FormField wrapperClassName="mt-4" type="checkbox" id="useToken" name="useToken" label="Use Token" checked={!!activeProject.sourceConnection?.useToken} onChange={e => handleConnectionChange('sourceConnection', 'useToken', e.target.checked)} />
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr,2fr,1fr,1fr] gap-4 items-center mt-4">
+                            {/* @ts-ignore */}
+                            <FormField as="select" id="serverType" name="serverType" label="Server Type" value={activeProject.sourceConnection?.serverType || ''} onChange={e => handleConnectionChange('sourceConnection', 'serverType', e.target.value)}>
+                                <option value="">Choose...</option>
+                                <option value="exchange">Exchange</option>
+                                <option value="imap">IMAP</option>
+                            </FormField>
+                            {/* @ts-ignore */}
+                            <FormField id="serverName" name="serverName" label="Server Name" required value={activeProject.sourceConnection?.server || ''} onChange={e => handleConnectionChange('sourceConnection', 'server', e.target.value)} />
+                             {/* @ts-ignore */}
+                            <FormField id="port" name="port" label="Port" type="number" required value={activeProject.sourceConnection?.port || 993} onChange={e => handleConnectionChange('sourceConnection', 'port', Number(e.target.value))} />
+                            <div>
+                                <label className="block text-sm font-medium mb-1 text-[#293c51] dark:text-gray-300">Security <span className="text-red-500">*</span></label>
+                                <div className="flex items-center gap-4 pt-2">
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="sourceSecurity" value="none" checked={!sourceUseSsl} onChange={() => handleConnectionChange('sourceConnection', 'useSsl', false)} /> None</label>
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="sourceSecurity" value="ssl" checked={sourceUseSsl} onChange={() => handleConnectionChange('sourceConnection', 'useSsl', true)} /> SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                    
+                    <Card title="Folder Options">
+                        <div className="flex items-center gap-8">
+                            <div className="flex items-center gap-4">
+                                {/* @ts-ignore */}
+                                <label className="flex items-center gap-2 text-sm"><input type="radio" name="folderSelection" value="all" checked={folderSelection === 'all'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, folderOptions: {...p.folderOptions, selection: 'all'} }))} /> All Folders</label>
+                                {/* @ts-ignore */}
+                                <label className="flex items-center gap-2 text-sm"><input type="radio" name="folderSelection" value="exclude" checked={folderSelection === 'exclude'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, folderOptions: {...p.folderOptions, selection: 'exclude'} }))} /> Exclude Folders</label>
+                            </div>
+                             {/* @ts-ignore */}
+                            <FormField type="checkbox" id="excludeInbox" name="excludeInbox" label="Exclude Inbox" checked={!!activeProject.folderOptions?.excludeInbox} onChange={e => updateAndSaveActiveProject(p => ({ ...p, folderOptions: {...p.folderOptions, excludeInbox: e.target.checked} }))} />
+                        </div>
+                    </Card>
+                    
+                    <Card title="Destination">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            {/* @ts-ignore */}
+                            <FormField id="destEmail" name="destEmail" label="Email" required value={activeProject.destinationConnection?.username || ''} onChange={e => handleConnectionChange('destinationConnection', 'username', e.target.value)} wrapperClassName="!mb-0" />
+                            {/* @ts-ignore */}
+                            <FormField id="destPass" name="destPass" label="Password" type="password" showPasswordToggle required value={activeProject.destinationConnection?.password || ''} onChange={e => handleConnectionChange('destinationConnection', 'password', e.target.value)} wrapperClassName="!mb-0" />
+                            <Button variant="outline" className="w-full">Validate Credentials</Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-4 items-center mt-4">
+                            {/* @ts-ignore */}
+                            <FormField id="destServerName" name="destServerName" label="Server Name" required value={activeProject.destinationConnection?.server || ''} onChange={e => handleConnectionChange('destinationConnection', 'server', e.target.value)} />
+                            {/* @ts-ignore */}
+                            <FormField id="destPort" name="destPort" label="Port" type="number" required value={activeProject.destinationConnection?.port || 993} onChange={e => handleConnectionChange('destinationConnection', 'port', Number(e.target.value))} />
+                            <div>
+                                <label className="block text-sm font-medium mb-1 text-[#293c51] dark:text-gray-300">Security <span className="text-red-500">*</span></label>
+                                <div className="flex items-center gap-4 pt-2">
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="destSecurity" value="none" checked={!destUseSsl} onChange={() => handleConnectionChange('destinationConnection', 'useSsl', false)} /> None</label>
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="destSecurity" value="ssl" checked={destUseSsl} onChange={() => handleConnectionChange('destinationConnection', 'useSsl', true)} /> SSL</label>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+    
+                    <Card title="Date Range">
+                        <div className="flex items-center gap-4">
+                             {/* @ts-ignore */}
+                            <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="all" checked={dateRangeType === 'all'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'all'} }))} /> All Mails</label>
+                             {/* @ts-ignore */}
+                            <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="specific" checked={dateRangeType === 'specific'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'specific'} }))} /> Specific Range</label>
+                        </div>
+                        {dateRangeType === 'specific' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                 {/* @ts-ignore */}
+                                <FormField id="dateFrom" name="dateFrom" label="From" type="date" value={activeProject.dateRange?.from || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, from: e.target.value} }))} />
+                                 {/* @ts-ignore */}
+                                <FormField id="dateTo" name="dateTo" label="To" type="date" value={activeProject.dateRange?.to || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, to: e.target.value} }))} />
+                            </div>
+                        )}
+                    </Card>
+    
+                    <Card title="">
+                        <div className="flex items-center gap-8">
+                             {/* @ts-ignore */}
+                            <FormField as="select" id="maxErrors" name="maxErrors" label="Max Errors" value={activeProject.maxErrors || '200'} onChange={e => updateAndSaveActiveProject({ maxErrors: e.target.value })}>
+                                <option value="100">100 Errors</option>
+                                <option value="200">200 Errors</option>
+                                <option value="500">500 Errors</option>
+                            </FormField>
+                            <div className="mt-6">
+                                 {/* @ts-ignore */}
+                                <FormField type="checkbox" id="addHeader" name="addHeader" label="Add Header" checked={!!activeProject.addHeader} onChange={e => updateAndSaveActiveProject({ addHeader: e.target.checked })} />
+                            </div>
+                        </div>
+                    </Card>
                 </div>
             );
             case 1: return (
@@ -584,34 +549,150 @@ export const EmailMigrationPage: React.FC = () => {
             default: return null;
         }
     };
-    
-    if (view === 'wizard') {
-        return (
-            <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-[#293c51] dark:text-gray-100">
-                        {activeProject?.projectName || 'New Migration Project'}
-                    </h1>
-                    <Button variant="outline" onClick={handleGoToList}>Back to Projects List</Button>
-                </div>
-                {renderWizardView()}
-                 <Modal
-                    isOpen={isCancelModalOpen}
-                    onClose={() => setIsCancelModalOpen(false)}
-                    title="Cancel Migration"
-                    footer={<><Button variant="danger" onClick={handleCancelMigration}>Confirm Cancel</Button><Button variant="ghost" onClick={() => setIsCancelModalOpen(false)}>Continue Migration</Button></>}
-                >
-                    <p>Are you sure you want to cancel this migration? Any progress will be saved, but the migration will be stopped.</p>
-                </Modal>
-            </div>
-        )
-    }
 
+    const renderGreetingView = () => (
+        <div className="text-center py-12">
+            <h2 className="text-3xl font-bold text-[#293c51] dark:text-gray-100">Ready to Migrate Your Email?</h2>
+            <p className="text-lg text-gray-500 dark:text-gray-400 mt-2 max-w-2xl mx-auto">
+                Our secure and automated process makes it easy to transfer your data from other providers.
+            </p>
+            <div className="mt-8 flex items-center justify-center gap-x-4">
+                <Button onClick={handleStartNewMigration} size="lg">
+                    Start New Migration
+                </Button>
+                {projects.length > 0 && (
+                    <Button onClick={() => setView('list')} size="lg" variant="outline">
+                        View Existing Projects
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+    
+    const renderListView = () => (
+        <Card title="Existing Migration Projects" titleActions={
+             <div className="flex items-center gap-2">
+                <Button onClick={() => setView('greeting')} variant="outline" leftIconName="fas fa-home">Back to Home</Button>
+                <Button onClick={handleStartNewMigration} leftIconName="fas fa-plus-circle">
+                    Start New Migration
+                </Button>
+            </div>
+        }>
+            <div className="overflow-x-auto">
+                <table className="min-w-full">
+                    <thead className="bg-gray-50 dark:bg-slate-700">
+                        <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Migration Name</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Number of Mailboxes</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Creation Date</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Delete</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {projects.map(p => (
+                            <tr key={p.id}>
+                                <td className="px-4 py-3 font-medium">{p.projectName}</td>
+                                <td className="px-4 py-3">{getStatusChip(p.status)}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{p.mailboxesToMigrate}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</td>
+                                <td className="px-4 py-3 text-left">
+                                    {p.status === 'completed' && <Button size="sm" variant="outline" onClick={() => handleResumeProject(p)}>View Report</Button>}
+                                    {p.status === 'in_progress' && <Button size="sm" onClick={() => handleResumeProject(p)}>View Progress</Button>}
+                                    {(p.status !== 'completed' && p.status !== 'in_progress') && <Button size="sm" variant="outline" onClick={() => handleResumeProject(p)}>Resume</Button>}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <Button size="icon" variant="ghost" onClick={() => handleOpenDeleteModal(p)} title="Delete Project"><Icon name="fas fa-trash-alt" className="text-red-500"/></Button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </Card>
+    );
+
+    const renderWizardView = () => (
+        <>
+            <div className="flex justify-between items-center">
+                 <h1 className="text-2xl font-bold text-[#293c51] dark:text-gray-100">
+                    {activeProject?.projectName || 'New Migration Project'}
+                </h1>
+                <Button variant="outline" onClick={handleGoToList}>Back to Projects List</Button>
+            </div>
+            
+            <div className="w-full md:w-3/4 lg:w-2/3 mx-auto">
+                <Stepper steps={steps} currentStep={currentStep} className="my-8" />
+            </div>
+
+            <div className="max-w-5xl mx-auto">
+                {errorMessage && (
+                    <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
+                        <Icon name="fas fa-exclamation-triangle" className="mr-2"/>
+                        <span className="font-medium">Error:</span> {errorMessage}
+                    </div>
+                )}
+                {renderStepContent()}
+            </div>
+            
+            <div className="max-w-5xl mx-auto flex justify-between items-center mt-8 pt-4 border-t dark:border-slate-700">
+                <div>
+                     {currentStep > 0 && currentStep < 4 && activeProject?.status !== 'in_progress' && (
+                        <Button variant="outline" onClick={handleBack} disabled={isLoading}>Back</Button>
+                    )}
+                </div>
+                 <div className="flex items-center gap-2">
+                    {currentStep < 3 && (
+                        <Button onClick={handleNext} isLoading={isLoading} disabled={isLoading}>
+                            {currentStep === 0 ? 'Connect & Analyze' : 'Next'}
+                        </Button>
+                    )}
+                    {currentStep === 3 && activeProject?.status !== 'in_progress' && activeProject?.status !== 'completed' && (
+                        <Button onClick={handleNext} leftIconName="fas fa-rocket">Start Migration</Button>
+                    )}
+                    {currentStep === 3 && activeProject?.status === 'in_progress' && (
+                        <Button variant="danger" onClick={() => setIsCancelModalOpen(true)}>Cancel Migration</Button>
+                    )}
+                    {currentStep === 3 && activeProject?.status === 'completed' && (
+                        <Button onClick={handleNext} leftIconName="far fa-file-alt">View Report</Button>
+                    )}
+                </div>
+            </div>
+        </>
+    );
+    
     return (
         <div className="space-y-6">
             <h1 className="text-3xl font-bold text-[#293c51] dark:text-gray-100">Email Migration</h1>
-            <MigrationGreetingView onStart={handleStartNewMigration} />
-            {renderListView()}
+            {
+                {
+                    greeting: renderGreetingView(),
+                    list: renderListView(),
+                    wizard: renderWizardView(),
+                }[view]
+            }
+             <Modal
+                isOpen={isCancelModalOpen}
+                onClose={() => setIsCancelModalOpen(false)}
+                title="Cancel Migration"
+                footer={<><Button variant="danger" onClick={handleCancelMigration}>Confirm Cancel</Button><Button variant="ghost" onClick={() => setIsCancelModalOpen(false)}>Continue Migration</Button></>}
+            >
+                <p>Are you sure you want to cancel this migration? Any progress will be saved, but the migration will be stopped.</p>
+            </Modal>
+            <Modal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                title={`Delete Project: ${projectToDelete?.projectName}`}
+                footer={
+                    <>
+                        <Button variant="danger" onClick={handleConfirmDelete}>Confirm Delete</Button>
+                        <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)}>Cancel</Button>
+                    </>
+                }
+            >
+                <p>Are you sure you want to permanently delete the migration project "<strong>{projectToDelete?.projectName}</strong>"? This action cannot be undone.</p>
+            </Modal>
         </div>
     );
 };
