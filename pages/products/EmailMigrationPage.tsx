@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, FormField, Stepper, Icon, TreeView, Spinner, Modal } from '@/components/ui';
+import { Button, Card, FormField, Stepper, Icon, TreeView, Spinner, Modal, CollapsibleSection } from '@/components/ui';
 import type { TreeNode } from '@/components/ui';
 import type { EmailMigrationProject, EmailProvider, MigrationItem, MigrationStatus, ConnectionDetails } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,24 +9,17 @@ import { mockEmailMigrationProjects } from '@/data';
 
 const MIGRATION_COST_PER_MAILBOX = 1.00;
 
-interface BulkMigrationUser {
-  id: string;
-  destination: string;
-  source: string;
-  status: 'Ready' | 'In Progress' | 'Completed' | 'Failed' | 'Queued' | 'Paused';
-  note?: string;
-  progress: number;
-  totalItems: number;
-  processedItems: number;
-  failedItems: number;
-  removedItems: number;
+interface ParsedCsvUser {
+    source: string;
+    destination: string;
+    status: 'Ready' | 'Error';
+    error?: string;
 }
 
 
 const steps = [
   { name: 'Connect Accounts' },
   { name: 'Scope & Options' },
-  { name: 'Migration Options' },
   { name: 'Start Migration' },
   { name: 'Migration Report' },
 ];
@@ -53,91 +46,49 @@ const mockFolderStructure: TreeNode[] = [
     { id: 'sent', name: 'Sent Items' },
     { id: 'drafts', name: 'Drafts' },
     { id: 'archive', name: 'Archive' },
-    { id: 'deleted', name: 'Deleted Items' },
 ];
 
-
-const ProgressBar: React.FC<{ progress: number; status: BulkMigrationUser['status'] }> = ({ progress, status }) => {
-    const barColor = status === 'Failed' ? 'bg-red-500' : status === 'Completed' ? 'bg-green-500' : 'bg-blue-500';
-    return (
-        <div className="flex items-center gap-2 w-32">
-            <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-                <div className={`${barColor} h-2 rounded-full`} style={{ width: `${progress}%` }}></div>
-            </div>
-            <span className="text-xs font-semibold w-8 text-right">{progress}%</span>
-        </div>
-    );
-};
-
-const getBulkStatusChipClass = (status: BulkMigrationUser['status']) => {
-    switch(status) {
-        case 'Completed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-        case 'In Progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-        case 'Failed': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-        case 'Paused':
-        case 'Queued': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-        case 'Ready':
-        default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-    }
-};
-
-const BulkMigrationReportTable: React.FC<{
-    users: BulkMigrationUser[];
-    onOpenNote: (title: string, content: string) => void;
+const BulkUserPreviewTable: React.FC<{
+    users: ParsedCsvUser[];
     onClear: () => void;
-}> = ({ users, onOpenNote, onClear }) => {
-    // Mock handlers for actions
-    const handleProcess = (userId: string) => alert(`Processing user ${userId}`);
-    const handleAction = (userId: string, action: string) => alert(`${action} on user ${userId}`);
-    const handleLogs = (userId: string) => alert(`Showing logs for user ${userId}`);
-    const handleEdit = (userId: string) => alert(`Editing user ${userId}`);
-
+}> = ({ users, onClear }) => {
+    const errorCount = users.filter(u => u.status === 'Error').length;
     return (
-        <Card title="Bulk Migration Report">
-            <div className="overflow-x-auto">
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold">{users.length} users found in file.</h4>
+                {errorCount > 0 && <span className="text-red-500 text-sm font-semibold">{errorCount} error(s) detected.</span>}
+            </div>
+            <div className="overflow-auto border rounded-lg dark:border-gray-700 max-h-64">
                 <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-700">
+                    <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0">
                         <tr>
-                            {['Destination', 'Source', 'Status', 'Note', 'Progress', 'Total', 'Processed', 'Failed', 'Removed', 'Process', 'Action', 'Logs', 'Edit'].map(header => (
-                                <th key={header} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">{header}</th>
-                            ))}
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Source Email</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Destination Email</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status / Error</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {users.map(user => (
-                            <tr key={user.id}>
-                                <td className="px-3 py-2 whitespace-nowrap">{user.destination}</td>
+                        {users.map((user, index) => (
+                            <tr key={index} className={user.status === 'Error' ? 'bg-red-50 dark:bg-red-900/20' : ''}>
                                 <td className="px-3 py-2 whitespace-nowrap">{user.source}</td>
-                                <td className="px-3 py-2 whitespace-nowrap"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getBulkStatusChipClass(user.status)}`}>{user.status}</span></td>
-                                <td className="px-3 py-2">
-                                    {user.note && <Button size="sm" variant="ghost" onClick={() => onOpenNote(`Note for ${user.source}`, user.note!)}>Read More</Button>}
-                                </td>
-                                <td className="px-3 py-2"><ProgressBar progress={user.progress} status={user.status} /></td>
-                                <td className="px-3 py-2 text-center">{user.totalItems.toLocaleString()}</td>
-                                <td className="px-3 py-2 text-center">{user.processedItems.toLocaleString()}</td>
-                                <td className="px-3 py-2 text-center">{user.failedItems.toLocaleString()}</td>
-                                <td className="px-3 py-2 text-center">{user.removedItems.toLocaleString()}</td>
-                                <td className="px-3 py-2">
-                                    <Button size="sm" variant="outline" onClick={() => handleProcess(user.id)}>Process</Button>
-                                </td>
-                                <td className="px-3 py-2">
-                                    <Button size="sm" variant="outline" onClick={() => handleAction(user.id, 'Stop')}>Stop</Button>
-                                </td>
-                                <td className="px-3 py-2">
-                                    <Button size="sm" variant="ghost" onClick={() => handleLogs(user.id)}>Logs</Button>
-                                </td>
-                                <td className="px-3 py-2">
-                                    <Button size="icon" variant="ghost" onClick={() => handleEdit(user.id)}><Icon name="fas fa-pencil-alt" /></Button>
+                                <td className="px-3 py-2 whitespace-nowrap">{user.destination}</td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                    {user.status === 'Ready' ? (
+                                        <span className="text-green-600 dark:text-green-400 font-semibold">Ready</span>
+                                    ) : (
+                                        <span className="text-red-600 dark:text-red-400 font-semibold">{user.error}</span>
+                                    )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-            <div className="mt-4 flex justify-end">
+             <div className="mt-4 flex justify-end">
                 <Button variant="outline" onClick={onClear}>Clear & Upload New File</Button>
             </div>
-        </Card>
+        </div>
     );
 };
 
@@ -155,19 +106,20 @@ export const EmailMigrationPage: React.FC = () => {
     
     // Step 2 state
     const [checkedFolderIds, setCheckedFolderIds] = useState<Set<string>>(new Set(['inbox', 'inbox-work', 'inbox-personal', 'sent', 'drafts', 'archive']));
-    const [bulkMigrationUsers, setBulkMigrationUsers] = useState<BulkMigrationUser[]>([]);
-    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-    const [noteModalContent, setNoteModalContent] = useState({ title: '', content: '' });
+    const [parsedCsvUsers, setParsedCsvUsers] = useState<ParsedCsvUser[]>([]);
     
-    // Step 4 state
+    // Step 3 state (Migration)
     const [migrationLog, setMigrationLog] = useState<string[]>([]);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const migrationIntervalRef = useRef<number | null>(null);
     const csvUploadRef = useRef<HTMLInputElement>(null);
     
-    // State for delete modal
+    // State for modals
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<EmailMigrationProject | null>(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isPaying, setIsPaying] = useState(false);
+
 
     // State for connection checks
     const [sourceConnectionStatus, setSourceConnectionStatus] = useState<'idle' | 'checking'>('idle');
@@ -226,9 +178,11 @@ export const EmailMigrationPage: React.FC = () => {
             isIncrementalSyncEnabled: true,
             migrationWindow: 'all',
             backupWithVeeam: false,
+            migrationMode: 'single',
             folderOptions: {
                 selection: 'all',
                 excludeInbox: false,
+                includeSpamTrash: false,
             },
             dateRange: {
                 type: 'all',
@@ -237,6 +191,8 @@ export const EmailMigrationPage: React.FC = () => {
             },
             maxErrors: '200',
             addHeader: false,
+            labelsPolicy: 'keep-existing',
+            maxMessageSizeMB: 50,
         };
         setActiveProject(newProject);
         setProjects(prev => [newProject, ...prev]);
@@ -250,10 +206,10 @@ export const EmailMigrationPage: React.FC = () => {
         
         switch(projectToResume.status) {
             case 'completed':
-                setCurrentStep(4);
+                setCurrentStep(3); // Report step
                 break;
             case 'in_progress':
-                setCurrentStep(3);
+                setCurrentStep(2); // Migration step
                 break;
             case 'error':
             case 'cancelled':
@@ -338,14 +294,13 @@ export const EmailMigrationPage: React.FC = () => {
 
     const handleNext = async () => {
         setErrorMessage('');
-        const isNewProject = activeProject ? projects.find(p => p.id === activeProject.id)?.status === 'not_started' : false;
 
         if (currentStep === 0) { // Connect Accounts
              if (
                 !activeProject?.projectName ||
                 (activeProject.sourceProvider === 'google' && (!activeProject.sourceConnection?.tokenJson || !activeProject.sourceConnection?.username || !activeProject.sourceConnection?.password)) ||
                 (activeProject.sourceProvider !== 'google' && !activeProject.sourceConnection?.username) ||
-                (isNewProject && activeProject.sourceProvider !== 'google' && !activeProject.sourceConnection.password) ||
+                !activeProject.sourceConnection.password ||
                 (activeProject.sourceProvider !== 'google' && activeProject.sourceProvider !== 'worldposta' && activeProject.sourceProvider !== 'onpremises' && !activeProject.sourceConnection.server) ||
                 !activeProject.destinationConnection?.username || 
                 !activeProject.destinationConnection?.password ||
@@ -358,57 +313,8 @@ export const EmailMigrationPage: React.FC = () => {
             await new Promise(res => setTimeout(res, 1500)); // Simulate API call
             setIsLoading(false);
             updateAndSaveActiveProject({ status: 'analyzing' });
-        }
-
-        if (currentStep === 3) { // Start Migration
-            if (activeProject?.status === 'completed') {
-                setCurrentStep(4);
-                return;
-            }
-            updateAndSaveActiveProject({ status: 'in_progress', progress: 0 });
-            setMigrationLog([`[${new Date().toLocaleTimeString()}] Migration started...`]);
-
-            migrationIntervalRef.current = window.setInterval(() => {
-                updateAndSaveActiveProject((p: Partial<EmailMigrationProject>) => {
-                    if (!p) {
-                        if (migrationIntervalRef.current) clearInterval(migrationIntervalRef.current);
-                        return {};
-                    }
-                    const newProgress = Math.min((p.progress || 0) + 10, 100);
-
-                    setMigrationLog(prevLog => {
-                        let newLogEntry = '';
-                        switch (newProgress) {
-                            case 10: newLogEntry = `[${new Date().toLocaleTimeString()}] Analyzing source mailbox structure...`; break;
-                            case 20: newLogEntry = `[${new Date().toLocaleTimeString()}] Found 5,432 emails and 256 contacts to migrate.`; break;
-                            case 30: newLogEntry = `[${new Date().toLocaleTimeString()}] Starting email migration batch 1 of 5...`; break;
-                            case 40: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 1,200/5,432 emails.`; break;
-                            case 50: newLogEntry = `[${new Date().toLocaleTimeString()}] WARNING: Skipped oversized attachment 'Q4_Report.pptx' in 'Sent'.`; break;
-                            case 60: newLogEntry = `[${new Date().toLocaleTimeString()}] Finished email migration. Starting contact migration...`; break;
-                            case 70: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 256/256 contacts.`; break;
-                            case 80: newLogEntry = `[${new Date().toLocaleTimeString()}] Starting calendar event migration...`; break;
-                            case 90: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 1,024/1,024 calendar events.`; break;
-                            case 100: newLogEntry = `[${new Date().toLocaleTimeString()}] Finalizing migration, checking data integrity...`; break;
-                            default: break;
-                        }
-                        return newLogEntry ? [...prevLog, newLogEntry] : prevLog;
-                    });
-                    
-                    if (newProgress === 100) {
-                        if (migrationIntervalRef.current) clearInterval(migrationIntervalRef.current);
-                        migrationIntervalRef.current = null;
-                        const finalReport = {
-                           transferredEmails: 5432,
-                           transferredContacts: 256,
-                           transferredCalendarEvents: 1024,
-                           failedItems: [{ name: 'Q4_Report.pptx', type: 'Email' as const, reason: 'File size exceeds destination limit (50MB > 25MB).', retryable: true }]
-                        };
-                        return { progress: newProgress, status: 'completed', report: finalReport };
-                    }
-                    return { progress: newProgress };
-                });
-            }, 1000);
-            return;
+        } else if (currentStep === 1) { // Scope & Options
+            updateAndSaveActiveProject({ status: 'ready' });
         }
 
         setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
@@ -417,6 +323,65 @@ export const EmailMigrationPage: React.FC = () => {
     const handleBack = () => {
         setErrorMessage('');
         setCurrentStep(prev => Math.max(prev - 1, 0));
+    };
+    
+    const handleProceedToPayment = () => {
+        setIsPaymentModalOpen(true);
+    };
+
+    const handlePaymentConfirm = async () => {
+        setIsPaying(true);
+        await new Promise(res => setTimeout(res, 2000)); // Simulate payment processing
+        setIsPaying(false);
+        setIsPaymentModalOpen(false);
+
+        if (activeProject?.status === 'completed') {
+            setCurrentStep(3); // Go to report if already done
+            return;
+        }
+        updateAndSaveActiveProject({ status: 'in_progress', progress: 0 });
+        setMigrationLog([`[${new Date().toLocaleTimeString()}] Migration started...`]);
+
+        migrationIntervalRef.current = window.setInterval(() => {
+            updateAndSaveActiveProject((p: Partial<EmailMigrationProject>) => {
+                if (!p) {
+                    if (migrationIntervalRef.current) clearInterval(migrationIntervalRef.current);
+                    return {};
+                }
+                const newProgress = Math.min((p.progress || 0) + 10, 100);
+
+                setMigrationLog(prevLog => {
+                    let newLogEntry = '';
+                    switch (newProgress) {
+                        case 10: newLogEntry = `[${new Date().toLocaleTimeString()}] Analyzing source mailbox structure...`; break;
+                        case 20: newLogEntry = `[${new Date().toLocaleTimeString()}] Found 5,432 emails and 256 contacts to migrate.`; break;
+                        case 30: newLogEntry = `[${new Date().toLocaleTimeString()}] Starting email migration batch 1 of 5...`; break;
+                        case 40: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 1,200/5,432 emails.`; break;
+                        case 50: newLogEntry = `[${new Date().toLocaleTimeString()}] WARNING: Skipped oversized attachment 'Q4_Report.pptx' in 'Sent'.`; break;
+                        case 60: newLogEntry = `[${new Date().toLocaleTimeString()}] Finished email migration. Starting contact migration...`; break;
+                        case 70: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 256/256 contacts.`; break;
+                        case 80: newLogEntry = `[${new Date().toLocaleTimeString()}] Starting calendar event migration...`; break;
+                        case 90: newLogEntry = `[${new Date().toLocaleTimeString()}] Migrated 1,024/1,024 calendar events.`; break;
+                        case 100: newLogEntry = `[${new Date().toLocaleTimeString()}] Finalizing migration, checking data integrity...`; break;
+                        default: break;
+                    }
+                    return newLogEntry ? [...prevLog, newLogEntry] : prevLog;
+                });
+                
+                if (newProgress === 100) {
+                    if (migrationIntervalRef.current) clearInterval(migrationIntervalRef.current);
+                    migrationIntervalRef.current = null;
+                    const finalReport = {
+                       transferredEmails: 5432,
+                       transferredContacts: 256,
+                       transferredCalendarEvents: 1024,
+                       failedItems: [{ name: 'Q4_Report.pptx', type: 'Email' as const, reason: 'File size exceeds destination limit (50MB > 25MB).', retryable: true }]
+                    };
+                    return { progress: newProgress, status: 'completed', report: finalReport };
+                }
+                return { progress: newProgress };
+            });
+        }, 1000);
     };
 
     const handleConnectionChange = useCallback((
@@ -502,15 +467,16 @@ export const EmailMigrationPage: React.FC = () => {
             setIsLoading(true);
             // Simulate parsing and validation
             setTimeout(() => {
-                const mockParsedData: BulkMigrationUser[] = [
-                    { id: 'bulk-1', destination: 'user1@worldposta.com', source: 'user1@old.com', status: 'Ready', progress: 0, totalItems: 15234, processedItems: 0, failedItems: 0, removedItems: 0 },
-                    { id: 'bulk-2', destination: 'user2@worldposta.com', source: 'user2@old.com', status: 'Completed', progress: 100, totalItems: 8765, processedItems: 8765, failedItems: 0, removedItems: 0 },
-                    { id: 'bulk-3', destination: 'user3@worldposta.com', source: 'user3@old.com', status: 'Failed', note: 'Source authentication failed. Invalid credentials provided. Please check the password for the source account and try again.', progress: 15, totalItems: 12000, processedItems: 1800, failedItems: 10200, removedItems: 0 },
-                    { id: 'bulk-4', destination: 'user4@worldposta.com', source: 'user4@old.com', status: 'In Progress', progress: 65, totalItems: 25000, processedItems: 16250, failedItems: 10, removedItems: 0 },
-                    { id: 'bulk-5', destination: 'user5@worldposta.com', source: 'user5@old.com', status: 'Queued', progress: 0, totalItems: 9500, processedItems: 0, failedItems: 0, removedItems: 0 },
+                const mockParsedData: ParsedCsvUser[] = [
+                    { source: 'user1@old.com', destination: 'user1@worldposta.com', status: 'Ready' },
+                    { source: 'user2@old.com', destination: 'user2@worldposta.com', status: 'Ready' },
+                    { source: 'user3@old.com', destination: 'user3@worldposta.com', status: 'Error', error: 'Duplicate destination email' },
+                    { source: 'invalid-email', destination: 'user4@worldposta.com', status: 'Error', error: 'Invalid source email format' },
+                    { source: 'user5@old.com', destination: 'user5@worldposta.com', status: 'Ready' },
                 ];
-                setBulkMigrationUsers(mockParsedData);
-                updateAndSaveActiveProject({ mailboxesToMigrate: mockParsedData.length });
+                setParsedCsvUsers(mockParsedData);
+                const validUsersCount = mockParsedData.filter(u => u.status === 'Ready').length;
+                updateAndSaveActiveProject({ mailboxesToMigrate: validUsersCount });
                 setIsLoading(false);
             }, 1500);
         }
@@ -613,119 +579,110 @@ export const EmailMigrationPage: React.FC = () => {
                             <Button variant="secondary" onClick={handleCheckDestConnection} isLoading={destConnectionStatus === 'checking'}>Check Connection</Button>
                         </div>
                     </Card>
-    
-                    <Card title="Date Range">
-                        <div className="flex items-center gap-4">
-                            <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="all" checked={dateRangeType === 'all'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'all'} }))} /> All Mails</label>
-                            <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="specific" checked={dateRangeType === 'specific'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'specific'} }))} /> Specific Range</label>
-                        </div>
-                        {dateRangeType === 'specific' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <FormField id="dateFrom" name="dateFrom" label="From" type="date" value={activeProject.dateRange?.from || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, from: e.target.value} }))} />
-                                <FormField id="dateTo" name="dateTo" label="To" type="date" value={activeProject.dateRange?.to || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, to: e.target.value} }))} />
-                            </div>
-                        )}
-                    </Card>
-    
-                    <Card title="">
-                        <div className="flex items-center gap-8">
-                            <FormField as="select" id="maxErrors" name="maxErrors" label="Max Errors" value={activeProject.maxErrors || '200'} onChange={e => updateAndSaveActiveProject({ maxErrors: e.target.value })}>
-                                <option value="100">100 Errors</option>
-                                <option value="200">200 Errors</option>
-                                <option value="500">500 Errors</option>
-                            </FormField>
-                            <div className="mt-6">
-                                <FormField type="checkbox" id="addHeader" name="addHeader" label="Add Header" checked={!!activeProject.addHeader} onChange={e => updateAndSaveActiveProject({ addHeader: (e.target as HTMLInputElement).checked })} />
-                            </div>
-                        </div>
-                    </Card>
                 </div>
             );
             case 1: return (
                 <div className="space-y-6">
-                    {bulkMigrationUsers.length > 0 ? (
-                        <BulkMigrationReportTable 
-                            users={bulkMigrationUsers} 
-                            onOpenNote={(title, content) => {
-                                setNoteModalContent({ title, content });
-                                setIsNoteModalOpen(true);
-                            }}
-                            onClear={() => {
-                                setBulkMigrationUsers([]);
-                                if(csvUploadRef.current) csvUploadRef.current.value = "";
-                                updateAndSaveActiveProject({ mailboxesToMigrate: 1 });
-                            }}
-                        />
+                    <div role="tablist" className="inline-flex space-x-1 p-1 bg-gray-200/50 dark:bg-slate-700/50 rounded-lg">
+                        {(['single', 'bulk'] as const).map(mode => (
+                            <button
+                                key={mode}
+                                role="tab"
+                                aria-selected={activeProject.migrationMode === mode}
+                                onClick={() => updateAndSaveActiveProject({ migrationMode: mode })}
+                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#679a41] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                                    activeProject.migrationMode === mode
+                                        ? 'bg-white dark:bg-slate-800 text-[#679a41] dark:text-emerald-400 shadow-sm'
+                                        : 'text-gray-600 dark:text-gray-400 hover:text-[#293c51] dark:hover:text-gray-100'
+                                }`}
+                            >
+                                {mode === 'single' ? 'Single Migration' : 'Bulk Migration'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {activeProject.migrationMode === 'bulk' ? (
+                        <Card title="Bulk Mailbox Migration">
+                            {parsedCsvUsers.length > 0 ? (
+                                <BulkUserPreviewTable users={parsedCsvUsers} onClear={() => { setParsedCsvUsers([]); if(csvUploadRef.current) csvUploadRef.current.value = ""; updateAndSaveActiveProject({ mailboxesToMigrate: 1 }); }} />
+                            ) : (
+                                <>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                        For migrating multiple mailboxes at once, please download our sample CSV file, fill in the user details, and upload it.
+                                    </p>
+                                    <div className="flex items-center gap-4">
+                                        <Button variant="outline" leftIconName="fas fa-download" onClick={handleDownloadSampleCsv}>Download Sample File</Button>
+                                        <Button variant="secondary" leftIconName="fas fa-upload" onClick={() => csvUploadRef.current?.click()} isLoading={isLoading}>
+                                            {isLoading ? 'Processing...' : 'Upload Bulk File'}
+                                        </Button>
+                                    </div>
+                                    <input type="file" ref={csvUploadRef} className="hidden" accept=".csv" onChange={handleCsvUpload} />
+                                </>
+                            )}
+                        </Card>
                     ) : (
-                        <>
-                            <Card title="Bulk option">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                    For migrating multiple mailboxes at once, please download our sample CSV file, fill in the user details, and upload it.
-                                </p>
-                                <div className="flex items-center gap-4">
-                                    <Button variant="outline" leftIconName="fas fa-download" onClick={handleDownloadSampleCsv}>
-                                        Download Sample File
-                                    </Button>
-                                    <Button variant="secondary" leftIconName="fas fa-upload" onClick={() => csvUploadRef.current?.click()} isLoading={isLoading}>
-                                        {isLoading ? 'Processing...' : 'Upload Bulk File'}
-                                    </Button>
-                                </div>
-                                <input type="file" ref={csvUploadRef} className="hidden" accept=".csv" onChange={handleCsvUpload} />
-                            </Card>
-
-                            <div className="relative flex items-center">
-                                <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
-                                <span className="flex-shrink mx-4 text-gray-500 dark:text-gray-400 font-semibold">OR</span>
-                                <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
-                            </div>
-
-                            <Card title="Individual migration">
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                                        <Card><p className="font-bold text-lg">5,432</p><p className="text-sm text-gray-500">Emails</p></Card>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold mb-2">Select folders to migrate:</h4>
-                                        <TreeView nodes={mockFolderStructure} checkedIds={checkedFolderIds} onCheckedChange={setCheckedFolderIds} />
-                                        <p className="text-xs text-gray-500 mt-2">{checkedFolderIds.size} items selected for migration.</p>
-                                    </div>
-                                </div>
-                            </Card>
-                        </>
+                        <Card title="Individual Migration">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">This migration will process a single mailbox from <strong>{activeProject.sourceConnection?.username || 'the source account'}</strong> to <strong>{activeProject.destinationConnection?.username || 'the destination account'}</strong>.</p>
+                        </Card>
                     )}
-                </div>
-            );
-            case 2: return (
-                <div className="space-y-6">
-                    <FormField id="mailboxesToMigrate" name="mailboxesToMigrate" label="Number of Mailboxes to Migrate" type="number" min={1} value={activeProject.mailboxesToMigrate || 1} onChange={e => updateAndSaveActiveProject({mailboxesToMigrate: Number(e.target.value)})} />
-                    <Card>
-                        <h4 className="font-semibold mb-2">Migration Scope</h4>
-                        <FormField as="select" id="migrationWindow" name="migrationWindow" label="Messages to migrate" value={activeProject.migrationWindow || 'all'} onChange={e => updateAndSaveActiveProject({migrationWindow: e.target.value as any})}>
-                            <option value="all">All messages</option>
-                            <option value="recent">Only messages from the last 90 days</option>
-                            <option value="unread">Only unread messages</option>
-                        </FormField>
-                    </Card>
-                    <Card>
-                        <FormField type="checkbox" id="isIncrementalSyncEnabled" name="isIncrementalSyncEnabled" label="Enable incremental sync after initial migration" checked={!!activeProject.isIncrementalSyncEnabled} onChange={e => updateAndSaveActiveProject({ isIncrementalSyncEnabled: (e.target as HTMLInputElement).checked})} hint="Keeps your new mailbox synchronized with the old one for a period after the initial migration. This ensures no new emails are missed during your transition and allows for zero downtime." />
-                    </Card>
-                </div>
-            );
-             case 3: return (
-                <div className="space-y-6">
-                    <Card title="Migration Summary & Confirmation">
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex justify-between"><span>Source:</span> <span className="font-semibold">{activeProject.sourceConnection?.username}</span></li>
-                            <li className="flex justify-between"><span>Destination:</span> <span className="font-semibold">{activeProject.destinationConnection?.username}</span></li>
-                            <li className="flex justify-between"><span>Mailboxes:</span> <span className="font-semibold">{activeProject.mailboxesToMigrate}</span></li>
-                        </ul>
-                         <div className="mt-4 pt-4 border-t dark:border-gray-600 text-right">
-                            <p className="text-gray-600 dark:text-gray-400">Estimated Cost:</p>
-                            <p className="text-2xl font-bold text-[#679a41] dark:text-emerald-400">${migrationCost.toFixed(2)}</p>
+
+                    <Card title="Select Items to Migrate">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 className="font-semibold mb-2 text-sm">Select folders to migrate:</h4>
+                                <TreeView nodes={mockFolderStructure} checkedIds={checkedFolderIds} onCheckedChange={setCheckedFolderIds} className="max-h-60 overflow-y-auto" />
+                                <p className="text-xs text-gray-500 mt-2">{checkedFolderIds.size} items selected for migration.</p>
+                            </div>
+                            <div>
+                                 <FormField
+                                    type="checkbox"
+                                    id="includeSpamTrash"
+                                    label="Include Spam/Trash Folders"
+                                    checked={!!activeProject.folderOptions?.includeSpamTrash}
+                                    onChange={e => updateAndSaveActiveProject(p => ({ ...p, folderOptions: { ...p.folderOptions, includeSpamTrash: (e.target as HTMLInputElement).checked } }))}
+                                    hint="Migrating these folders may significantly increase migration time and cost."
+                                />
+                            </div>
                         </div>
                     </Card>
-                    
-                    {activeProject.status === 'in_progress' && (
+
+                    <CollapsibleSection title="Advanced Options">
+                        <div className="p-4 space-y-4 border-t dark:border-slate-600">
+                            <FormField as="select" id="migrationWindow" name="migrationWindow" label="Messages to migrate" value={activeProject.migrationWindow || 'all'} onChange={e => updateAndSaveActiveProject({migrationWindow: e.target.value as any})}>
+                                <option value="all">All messages</option>
+                                <option value="recent">Only messages from the last 90 days</option>
+                                <option value="unread">Only unread messages</option>
+                            </FormField>
+                            <FormField type="checkbox" id="isIncrementalSyncEnabled" name="isIncrementalSyncEnabled" label="Enable incremental sync after initial migration" checked={!!activeProject.isIncrementalSyncEnabled} onChange={e => updateAndSaveActiveProject({ isIncrementalSyncEnabled: (e.target as HTMLInputElement).checked})} hint="Keeps your new mailbox synchronized with the old one for a period after the initial migration." />
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t dark:border-gray-700">
+                                <FormField as="select" id="labelsPolicy" name="labelsPolicy" label="Labels Policy" value={activeProject.labelsPolicy || 'keep-existing'} onChange={e => updateAndSaveActiveProject({ labelsPolicy: e.target.value as any })}>
+                                    <option value="keep-existing">Keep existing labels on destination</option>
+                                    <option value="apply-new">Apply new labels from source</option>
+                                    <option value="ignore">Ignore all labels</option>
+                                </FormField>
+                                <FormField id="maxMessageSizeMB" name="maxMessageSizeMB" label="Maximum Message Size (MB)" type="number" min={1} max={150} value={activeProject.maxMessageSizeMB || 50} onChange={e => updateAndSaveActiveProject({ maxMessageSizeMB: Number(e.target.value) })} hint="Messages larger than this size will be skipped." />
+                            </div>
+                             <div className="pt-4 border-t dark:border-gray-700">
+                                <label className="block text-sm font-medium text-[#293c51] dark:text-gray-300 mb-2">Date Range</label>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="all" checked={dateRangeType === 'all'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'all'} }))} /> All Mails</label>
+                                    <label className="flex items-center gap-2 text-sm"><input type="radio" name="dateRangeType" value="specific" checked={dateRangeType === 'specific'} onChange={() => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, type: 'specific'} }))} /> Specific Range</label>
+                                </div>
+                                {dateRangeType === 'specific' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <FormField id="dateFrom" name="dateFrom" label="From" type="date" value={activeProject.dateRange?.from || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, from: e.target.value} }))} />
+                                        <FormField id="dateTo" name="dateTo" label="To" type="date" value={activeProject.dateRange?.to || ''} onChange={e => updateAndSaveActiveProject(p => ({ ...p, dateRange: {...p.dateRange, to: e.target.value} }))} />
+                                    </div>
+                                )}
+                             </div>
+                        </div>
+                    </CollapsibleSection>
+                </div>
+            );
+            case 2: {
+                 if (activeProject.status === 'in_progress') {
+                    return (
                         <Card>
                             <h4 className="font-semibold mb-2">Migration in Progress...</h4>
                             <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
@@ -736,12 +693,69 @@ export const EmailMigrationPage: React.FC = () => {
                                 {migrationLog.map((log, i) => <p key={i}>{log}</p>)}
                             </div>
                         </Card>
-                    )}
-                </div>
-            );
-            case 4: 
+                    )
+                }
+                const summaryData = activeProject.migrationMode === 'bulk' && parsedCsvUsers.length > 0 
+                    ? parsedCsvUsers.filter(u => u.status === 'Ready').map(u => ({ mailbox: u.source, messages: 'N/A', size: 'N/A', warnings: 0 }))
+                    : [{ mailbox: activeProject.sourceConnection?.username || 'N/A', messages: '~ 15,432', size: '~ 2.1 GB', warnings: 2 }];
+                
+                const warnings = [
+                    'Destination mailbox quota might be exceeded by ~200MB.',
+                    '2 messages larger than 25MB found and may be skipped.'
+                ];
+                
+                return (
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2">
+                            <Card title="Migration Summary">
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                        <thead className="bg-gray-50 dark:bg-slate-700">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mailbox</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Messages (est.)</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size (est.)</th>
+                                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Warnings</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {summaryData.map(row => (
+                                                <tr key={row.mailbox}>
+                                                    <td className="px-4 py-3 font-medium">{row.mailbox}</td>
+                                                    <td className="px-4 py-3">{row.messages}</td>
+                                                    <td className="px-4 py-3">{row.size}</td>
+                                                    <td className="px-4 py-3 text-center">{row.warnings > 0 ? <Icon name="fas fa-exclamation-triangle" className="text-yellow-500" /> : '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Card>
+                        </div>
+                        <div className="lg:col-span-1">
+                            <Card title="Order Summary">
+                                <div className="space-y-4">
+                                    <div>
+                                        <p className="text-gray-600 dark:text-gray-400">Total Price</p>
+                                        <p className="text-3xl font-bold text-[#679a41] dark:text-emerald-400">${migrationCost.toFixed(2)}</p>
+                                        <p className="text-xs text-gray-500">Based on {activeProject.mailboxesToMigrate} mailbox(es)</p>
+                                    </div>
+                                    {warnings.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold text-yellow-600 dark:text-yellow-400 flex items-center gap-2"><Icon name="fas fa-exclamation-triangle" /> Warnings</h4>
+                                            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 mt-2 space-y-1">
+                                                {warnings.map((w,i) => <li key={i}>{w}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+                        </div>
+                    </div>
+                );
+            }
+            case 3: {
                 const report = activeProject.report || { transferredEmails: 0, transferredContacts: 0, transferredCalendarEvents: 0, failedItems: [] };
-
                 const handleDownload = () => {
                     const headers = ["Item Name", "Type", "Reason for Failure"];
                     const rows = (report.failedItems || []).map(item => `"${item.name}","${item.type}","${item.reason}"`);
@@ -796,6 +810,7 @@ export const EmailMigrationPage: React.FC = () => {
                         </div>
                     </Card>
                 );
+            }
             default: return null;
         }
     };
@@ -891,24 +906,24 @@ export const EmailMigrationPage: React.FC = () => {
             
             <div className="max-w-5xl mx-auto flex justify-between items-center mt-8 pt-4 border-t dark:border-slate-700">
                 <div>
-                     {currentStep > 0 && currentStep < 4 && activeProject?.status !== 'in_progress' && (
+                     {currentStep > 0 && currentStep < 3 && activeProject?.status !== 'in_progress' && (
                         <Button variant="outline" onClick={handleBack} disabled={isLoading}>Back</Button>
                     )}
                 </div>
                  <div className="flex items-center gap-2">
-                    {currentStep < 3 && (
+                    {currentStep < 2 && (
                         <Button onClick={handleNext} isLoading={isLoading} disabled={isLoading}>
                             {currentStep === 0 ? 'Connect & Analyze' : 'Next'}
                         </Button>
                     )}
-                    {currentStep === 3 && activeProject?.status !== 'in_progress' && activeProject?.status !== 'completed' && (
-                        <Button onClick={handleNext} leftIconName="fas fa-rocket">Start Migration</Button>
+                    {currentStep === 2 && activeProject?.status !== 'in_progress' && activeProject?.status !== 'completed' && (
+                        <Button onClick={handleProceedToPayment} leftIconName="fas fa-credit-card">Proceed to Payment</Button>
                     )}
-                    {currentStep === 3 && activeProject?.status === 'in_progress' && (
+                    {currentStep === 2 && activeProject?.status === 'in_progress' && (
                         <Button variant="danger" onClick={() => setIsCancelModalOpen(true)}>Cancel Migration</Button>
                     )}
-                    {currentStep === 3 && activeProject?.status === 'completed' && (
-                        <Button onClick={handleNext} leftIconName="far fa-file-alt">View Report</Button>
+                    {currentStep === 2 && activeProject?.status === 'completed' && (
+                        <Button onClick={() => setCurrentStep(3)} leftIconName="far fa-file-alt">View Report</Button>
                     )}
                 </div>
             </div>
@@ -947,6 +962,20 @@ export const EmailMigrationPage: React.FC = () => {
                 <p>Are you sure you want to permanently delete the migration project "<strong>{projectToDelete?.projectName}</strong>"? This action cannot be undone.</p>
             </Modal>
             <Modal
+                isOpen={isPaymentModalOpen}
+                onClose={() => setIsPaymentModalOpen(false)}
+                title="Confirm Payment"
+                size="md"
+                footer={
+                    <>
+                        <Button onClick={handlePaymentConfirm} isLoading={isPaying}>Pay Now</Button>
+                        <Button variant="ghost" onClick={() => setIsPaymentModalOpen(false)} disabled={isPaying}>Cancel</Button>
+                    </>
+                }
+            >
+                <p className="text-lg">You are about to be charged <strong className="text-[#679a41] dark:text-emerald-400">${migrationCost.toFixed(2)}</strong> for this migration.</p>
+            </Modal>
+            <Modal
                 isOpen={connectionModal.isOpen}
                 onClose={() => setConnectionModal({ isOpen: false, type: null, status: null })}
                 title={`${connectionModal.type || ''} Connection Status`}
@@ -967,16 +996,6 @@ export const EmailMigrationPage: React.FC = () => {
                         </>
                     )}
                 </div>
-            </Modal>
-            <Modal
-                isOpen={isNoteModalOpen}
-                onClose={() => setIsNoteModalOpen(false)}
-                title={noteModalContent.title}
-                footer={<Button onClick={() => setIsNoteModalOpen(false)}>Close</Button>}
-            >
-                <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                    {noteModalContent.content}
-                </p>
             </Modal>
         </div>
     );

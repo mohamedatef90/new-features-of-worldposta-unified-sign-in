@@ -446,9 +446,11 @@ export interface EmailMigrationProject {
   migrationWindow?: 'all' | 'recent' | 'unread';
   scheduledAt?: string;
   backupWithVeeam?: boolean;
+  migrationMode?: 'single' | 'bulk';
   folderOptions?: {
     selection: 'all' | 'manual';
     excludeInbox: boolean;
+    includeSpamTrash?: boolean;
   };
   dateRange?: {
     type: 'all' | 'specific';
@@ -457,4 +459,6 @@ export interface EmailMigrationProject {
   };
   maxErrors?: string;
   addHeader?: boolean;
+  labelsPolicy?: 'apply-new' | 'keep-existing' | 'ignore';
+  maxMessageSizeMB?: number;
 }
