@@ -1,6 +1,5 @@
 
 
-
 export interface User {
   id: string;
   fullName: string;
@@ -396,7 +395,7 @@ export interface SharedContact {
 }
 
 // --- EMAIL MIGRATION ---
-export type EmailProvider = 'google' | 'microsoft' | 'zoho' | 'other_imap';
+export type EmailProvider = 'google' | 'microsoft' | 'yahoo' | 'zoho' | 'imap' | 'other' | 'worldposta' | 'onpremises';
 export type MigrationItem = 'emails' | 'contacts' | 'calendar';
 export type MigrationStatus = 'not_started' | 'analyzing' | 'ready' | 'in_progress' | 'error' | 'completed' | 'cancelled';
 
@@ -408,6 +407,7 @@ export interface ConnectionDetails {
   port?: number;
   useSsl: boolean;
   serverType?: 'exchange' | 'imap';
+  tokenJson?: string;
 }
 
 export interface FailedItem {
@@ -445,4 +445,16 @@ export interface EmailMigrationProject {
   isIncrementalSyncEnabled: boolean;
   migrationWindow?: 'all' | 'recent' | 'unread';
   scheduledAt?: string;
+  backupWithVeeam?: boolean;
+  folderOptions?: {
+    selection: 'all' | 'manual';
+    excludeInbox: boolean;
+  };
+  dateRange?: {
+    type: 'all' | 'specific';
+    from: string;
+    to: string;
+  };
+  maxErrors?: string;
+  addHeader?: boolean;
 }

@@ -449,7 +449,7 @@ export const mockEmailMigrationProjects: EmailMigrationProject[] = [
     {
         id: 'proj_2',
         projectName: 'Executive Accounts',
-        sourceProvider: 'other_imap',
+        sourceProvider: 'imap',
         sourceConnection: { useOAuth: false, username: 'ceo@legacy.com', server: 'imap.legacy.com', port: 993, useSsl: true },
         destinationProvider: 'google',
         destinationConnection: { useOAuth: true, username: 'ceo@newsystem.com' },
