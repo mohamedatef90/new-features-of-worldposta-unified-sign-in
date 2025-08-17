@@ -462,3 +462,18 @@ export interface EmailMigrationProject {
   labelsPolicy?: 'apply-new' | 'keep-existing' | 'ignore';
   maxMessageSizeMB?: number;
 }
+
+export type EmailMigrationAccountStatus = 'Cancelled' | 'New' | 'In Progress' | 'Completed' | 'Failed';
+
+export interface EmailMigrationAccount {
+  id: string;
+  destination: string;
+  source: string;
+  status: EmailMigrationAccountStatus;
+  note: string;
+  progress: number;
+  total: number;
+  processed: number;
+  failed: number;
+  removed: number;
+}

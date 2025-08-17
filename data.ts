@@ -1,6 +1,6 @@
 
 
-import type { User, UserGroup, Invoice, SupportTicket, LogEntry, SupportTicketProduct, InvoiceLineItem, StaffGroup, SmtpLogEntry, KnowledgeBaseArticle, KubernetesCluster, LoadBalancer, FirewallRule, StorageBucket, SecurityAlert, BackupJob, Mailbox, MailboxPlan, DistributionList, SharedContact, EmailMigrationProject } from './types';
+import type { User, UserGroup, Invoice, SupportTicket, LogEntry, SupportTicketProduct, InvoiceLineItem, StaffGroup, SmtpLogEntry, KnowledgeBaseArticle, KubernetesCluster, LoadBalancer, FirewallRule, StorageBucket, SecurityAlert, BackupJob, Mailbox, MailboxPlan, DistributionList, SharedContact, EmailMigrationProject, EmailMigrationAccount } from './types';
 
 // Mock User Data
 export const MOCK_USERS: { [email: string]: User & { passwordHash: string } } = {
@@ -484,6 +484,70 @@ export const mockEmailMigrationProjects: EmailMigrationProject[] = [
         }
     }
 ];
+
+export const mockEmailMigrationAccounts: EmailMigrationAccount[] = [
+  {
+    id: 'acc-1',
+    destination: 'zdvzdfbfg@sdfd.dds',
+    source: 'zdvzdfbfg@sdfd.dds',
+    status: 'Cancelled',
+    note: 'Host1 failure: Error connecting to source server.',
+    progress: 0,
+    total: 15230,
+    processed: 0,
+    failed: 0,
+    removed: 0,
+  },
+  {
+    id: 'acc-2',
+    destination: 'zdvzdfbfg@sdfd.dds',
+    source: 'zdvzdfbfg@sdfd.dds',
+    status: 'New',
+    note: '',
+    progress: 0,
+    total: 21050,
+    processed: 0,
+    failed: 0,
+    removed: 0,
+  },
+  {
+    id: 'acc-3',
+    destination: 'sdfgdf@ssw.com',
+    source: 'sdfsfd@dflgjfd.ci',
+    status: 'New',
+    note: '',
+    progress: 0,
+    total: 8500,
+    processed: 0,
+    failed: 0,
+    removed: 0,
+  },
+  {
+    id: 'acc-4',
+    destination: 'completed@example.com',
+    source: 'source.completed@example.com',
+    status: 'Completed',
+    note: 'Migration finished successfully.',
+    progress: 100,
+    total: 12000,
+    processed: 12000,
+    failed: 0,
+    removed: 0,
+  },
+  {
+    id: 'acc-5',
+    destination: 'inprogress@example.com',
+    source: 'source.inprogress@example.com',
+    status: 'In Progress',
+    note: 'Migrating mailbox...',
+    progress: 45,
+    total: 30000,
+    processed: 13500,
+    failed: 2,
+    removed: 0,
+  },
+];
+
 
 // --- NEW MOCK DATA for PRODUCTS ---
 export const mockKubernetesClusters: KubernetesCluster[] = [
